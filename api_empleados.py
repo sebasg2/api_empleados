@@ -126,6 +126,6 @@ async def update_empleado(
 # Código para ejecutar el servidor Uvicorn si el script se ejecuta directamente
 if __name__ == "__main__":
     import uvicorn
-    uvicorn.run("api_prueba:app", host="0.0.0.0", port=8000)
+    uvicorn.run("api_empleados:app", host="0.0.0.0", port=8000)
 
 
