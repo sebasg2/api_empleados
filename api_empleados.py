@@ -1,4 +1,4 @@
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Query
 from dotenv import load_dotenv
 import os
 import pymysql
@@ -13,7 +13,7 @@ password = os.getenv('DB_PASSWORD')
 host = os.getenv('DB_HOST')
 database = os.getenv('DB_DATABASE')
 
-# Configuración de la conexión
+# Configuración de la conexión a la base de datos
 config = {
     'user': username,
     'password': password,
@@ -25,20 +25,38 @@ config = {
 app = FastAPI()
 
 @app.get("/all_empleados")
-async def get_all_empleados():
+async def get_all_empleados(
+    limit: int = Query(10, le=100),  # Límite por defecto es 10, máximo es 100
+    offset: int = 0,
+    search: Optional[str] = None
+):
+    if limit > 100:
+        limit = 0  # Establece el límite a 0 para no devolver resultados si excede 100
+    
     try:
-        # Conectar a la base de datos
         db = pymysql.connect(**config)
         cursor = db.cursor()
 
-        # Realizar una consulta para obtener todos los datos de la tabla empleados
-        cursor.execute('SELECT * FROM empleados')
+        # Construir la consulta base
+        query = 'SELECT * FROM empleados WHERE TRUE'
+        parameters = []
+
+        # Agregar filtro de búsqueda si se proporciona
+        if search:
+            query += ' AND (nombre_empleado LIKE %s OR apellidos_empleado LIKE %s)'
+            parameters.extend([f'%{search}%', f'%{search}%'])
+
+        # Agregar paginación
+        query += ' LIMIT %s OFFSET %s'
+        parameters.extend([limit, offset])
+
+        cursor.execute(query, parameters)
         empleados = cursor.fetchall()
 
         return {"empleados": empleados}
 
     except pymysql.MySQLError as e:
-        raise HTTPException(status_code=500, detail=f"Database error: {e}")
+        raise HTTPException(status_code=500, detail=f"Error de base de datos: {e}")
 
     finally:
         if 'cursor' in locals() and cursor:
@@ -59,12 +77,12 @@ async def delete_empleado(email: str):
         db.commit()
 
         if cursor.rowcount == 0:
-            raise HTTPException(status_code=404, detail="Employee not found")
+            raise HTTPException(status_code=404, detail="Empleado no encontrado")
 
-        return {"detail": "Employee deleted successfully"}
+        return {"detail": "Empleado eliminado exitosamente"}
 
     except pymysql.MySQLError as e:
-        raise HTTPException(status_code=500, detail=f"Database error: {e}")
+        raise HTTPException(status_code=500, detail=f"Error de base de datos: {e}")
 
     finally:
         if 'cursor' in locals() and cursor:
@@ -110,12 +128,12 @@ async def update_empleado(
         db.commit()
 
         if cursor.rowcount == 0:
-            raise HTTPException(status_code=404, detail="Employee not found")
+            raise HTTPException(status_code=404, detail="Empleado no encontrado")
 
-        return {"detail": "Employee updated successfully"}
+        return {"detail": "Empleado actualizado exitosamente"}
 
     except pymysql.MySQLError as e:
-        raise HTTPException(status_code=500, detail=f"Database error: {e}")
+        raise HTTPException(status_code=500, detail=f"Error de base de datos: {e}")
 
     finally:
         if 'cursor' in locals() and cursor:
@@ -127,5 +145,6 @@ async def update_empleado(
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("api_empleados:app", host="0.0.0.0", port=8000)
+
 
 
