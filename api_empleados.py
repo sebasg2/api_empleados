@@ -86,32 +86,30 @@ async def get_all_empleados(
 
 
 
-#hacer que el delete pongan todas las candidaturas de ese empleado a que sean a id  1 que seria el administrador y luego se elimina el empleado
+
 @app.delete("/delete_empleado")
-async def delete_empleado(email_empleado: str):
+async def delete_empleado(id_empleado: int):
     try:
         # Conectar a la base de datos
         db = pymysql.connect(**config)
         cursor = db.cursor()
 
-        # Obtener el empleado_id del empleado a eliminar
-        select_query = "SELECT id_empleado FROM empleados WHERE email_empleado = %s"
-        cursor.execute(select_query, (email_empleado,))
+        # Verificar si el empleado existe
+        select_query = "SELECT id_empleado FROM empleados WHERE id_empleado = %s"
+        cursor.execute(select_query, (id_empleado,))
         empleado = cursor.fetchone()
 
         if not empleado:
             raise HTTPException(status_code=404, detail="Empleado no encontrado")
 
-        empleado_id = empleado['id_empleado']
-
-        # Actualizar las candidaturas para que el empleado_id sea 1
+        # Actualizar las candidaturas para que el id_empleado sea 1
         update_query = "UPDATE candidaturas SET id_empleado = 1 WHERE id_empleado = %s"
-        cursor.execute(update_query, (empleado_id,))
+        cursor.execute(update_query, (id_empleado,))
         db.commit()
 
         # Eliminar el empleado
-        delete_query = "DELETE FROM empleados WHERE email_empleado = %s"
-        cursor.execute(delete_query, (email_empleado,))
+        delete_query = "DELETE FROM empleados WHERE id_empleado = %s"
+        cursor.execute(delete_query, (id_empleado,))
         db.commit()
 
         return {"detail": "Empleado eliminado exitosamente"}
@@ -125,20 +123,21 @@ async def delete_empleado(email_empleado: str):
         if 'db' in locals() and db:
             db.close()
 
-# Endpoint para actualizar un empleado
+
+
 @app.put("/update_empleado")
 async def update_empleado(request: Request):
     try:
         body = await request.json()
-        email_empleado = body.get("email_empleado")
+        id_empleado = body.get("id_empleado")
         nombre_empleado = body.get("nombre_empleado")
         apellidos_empleado = body.get("apellidos_empleado")
         password = body.get("password")
         rol = body.get("rol")
         is_logged = body.get("is_logged")
         
-        if not email_empleado:
-            raise HTTPException(status_code=400, detail="El campo 'email_empleado' es requerido.")
+        if not id_empleado:
+            raise HTTPException(status_code=400, detail="El campo 'id_empleado' es requerido.")
 
         # Conectar a la base de datos
         db = pymysql.connect(**config)
@@ -153,7 +152,7 @@ async def update_empleado(request: Request):
             password = COALESCE(%s, password),
             rol = COALESCE(%s, rol),
             is_logged = COALESCE(%s, is_logged)
-        WHERE email_empleado = %s;
+        WHERE id_empleado = %s;
         """
         
         # Ejecutar la consulta de actualización
@@ -163,7 +162,7 @@ async def update_empleado(request: Request):
             password,
             rol,
             is_logged,
-            email_empleado
+            id_empleado
         ))
         db.commit()
 
