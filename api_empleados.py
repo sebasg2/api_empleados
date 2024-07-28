@@ -30,15 +30,12 @@ app = FastAPI()
 
 @app.get("/all_empleados")
 async def get_all_empleados(
-    limit: int = Query(10, le=100),  # Límite por defecto es 10, máximo es 100
-    offset: int = 0,
+    limit: int = Query(..., le=50),  # Límite máximo es 50
+    offset: int = Query(...),
     search: Optional[str] = None,
     sort_by: Optional[str] = Query('num_candidaturas', enum=['num_candidaturas', 'nombre_empleado', 'rol']),
     sort_order: Optional[str] = Query('desc', enum=['asc', 'desc'])  # Agregar parámetro opcional para ordenar
 ):
-    if limit > 50:
-        limit = 50  # Establece el límite a 100 para no devolver resultados si excede 50
-
     try:
         # Conectar a la base de datos
         db = pymysql.connect(**config)
@@ -82,7 +79,6 @@ async def get_all_empleados(
             cursor.close()
         if 'db' in locals() and db:
             db.close()
-
 
 
 
