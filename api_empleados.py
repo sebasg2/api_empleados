@@ -218,6 +218,44 @@ async def get_candidaturas_por_empleado(id_empleado: int = Query(..., descriptio
         raise HTTPException(status_code=500, detail=f"Error al generar la respuesta: {e}")
 
 
+
+@app.get("/candidaturas_status")
+async def get_candidaturas_status():
+    try:
+        # Conectar a la base de datos
+        db = pymysql.connect(**config)
+        cursor = db.cursor(pymysql.cursors.DictCursor)
+
+        # Obtener los datos de la tabla de candidaturas
+        query = "SELECT status FROM candidaturas"
+        cursor.execute(query)
+        data = cursor.fetchall()
+
+        # Convertir los datos a un DataFrame de pandas
+        df = pd.DataFrame(data)
+
+        # Contar candidatos en cada estado
+        status_counts = df['status'].value_counts().reset_index()
+        status_counts.columns = ['status', 'count']
+
+        # Convertir el DataFrame a un diccionario
+        result = status_counts.set_index('status')['count'].to_dict()
+
+        # Cerrar la conexión
+        cursor.close()
+        db.close()
+
+        # Retornar el diccionario como respuesta JSON
+        return result
+
+    except pymysql.MySQLError as e:
+        raise HTTPException(status_code=500, detail=f"Error de base de datos: {e}")
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error: {e}")
+
+
+
     
 # Código para ejecutar el servidor Uvicorn si el script se ejecuta directamente
 if __name__ == "__main__":
