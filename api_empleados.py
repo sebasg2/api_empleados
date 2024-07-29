@@ -220,7 +220,11 @@ async def get_candidaturas_por_empleado(id_empleado: int = Query(..., descriptio
         raise HTTPException(status_code=500, detail=f"Error de base de datos: {e}")
 
     except Exception as e:
+   
+ 
         raise HTTPException(status_code=500, detail=f"Error al generar la respuesta: {e}")
+    
+
 
 @app.get("/candidaturas_status")
 async def get_candidaturas_status():
@@ -264,18 +268,23 @@ async def get_career_count():
         db = pymysql.connect(**config)
         cursor = db.cursor()
 
+        # Obtener el total de candidatos
+        cursor.execute('SELECT COUNT(*) as total FROM candidatos')
+        total_count = cursor.fetchone()['total']
+
+        # Obtener el conteo de cada carrera
         cursor.execute('SELECT carrera, COUNT(*) as count FROM candidatos GROUP BY carrera')
-        
-        # Process the results
-        career_count = {}
-        for row in cursor.fetchall():
-            carrera = row['carrera']
-            count = row['count']
-            
-            # Format the carrera name
-            formatted_carrera = re.sub(r'\s+', '_', carrera).lower()
-            career_count[formatted_carrera] = count
-        
+        data = cursor.fetchall()
+
+        # Calcular el porcentaje para cada carrera
+        if total_count == 0:
+            return {"message": "No hay datos disponibles"}
+
+        career_count = {
+            re.sub(r'\s+', '_', row['carrera']).lower(): round((row['count'] / total_count) * 100, 2)
+            for row in data
+        }
+
         return career_count
 
     except pymysql.MySQLError as e:
@@ -286,7 +295,6 @@ async def get_career_count():
         db.close()
 
 
-
 @app.get("/estadisticas/notas")
 async def get_average_grades():
     try:
@@ -294,17 +302,20 @@ async def get_average_grades():
         db = pymysql.connect(**config)
         cursor = db.cursor()
 
+        # Ejecutar la consulta para obtener el promedio de notas por carrera
         cursor.execute('SELECT carrera, AVG(nota_media) as average FROM candidatos GROUP BY carrera')
         
-        # Process the results
+        # Obtener los resultados
         average_grades = {}
         for row in cursor.fetchall():
             carrera = row['carrera']
             average = row['average']
             
-            # Format the carrera name
+            # Formatear el nombre de la carrera
             formatted_carrera = re.sub(r'\s+', '_', carrera).lower()
-            average_grades[formatted_carrera] = average
+            
+            # Redondear la nota media a 2 decimales si no es None
+            average_grades[formatted_carrera] = round(average, 2) if average is not None else None
         
         return average_grades
 
@@ -316,6 +327,7 @@ async def get_average_grades():
         db.close()
 
 
+
 @app.get("/estadisticas/ingles")
 async def get_english_level_count():
     try:
@@ -323,8 +335,22 @@ async def get_english_level_count():
         db = pymysql.connect(**config)
         cursor = db.cursor()
 
+        # Obtener el total de candidatos
+        cursor.execute('SELECT COUNT(*) as total FROM candidatos')
+        total_count = cursor.fetchone()['total']
+
+        # Obtener el conteo de cada nivel de inglés
         cursor.execute('SELECT nivel_ingles, COUNT(*) as count FROM candidatos GROUP BY nivel_ingles')
-        english_level_count = {row['nivel_ingles']: row['count'] for row in cursor.fetchall()}
+        data = cursor.fetchall()
+
+        # Calcular el porcentaje para cada nivel de inglés
+        if total_count == 0:
+            return {"message": "No hay datos disponibles"}
+
+        english_level_count = {
+            row['nivel_ingles']: round((row['count'] / total_count) * 100, 2)
+            for row in data
+        }
         return english_level_count
 
     except pymysql.MySQLError as e:
@@ -335,12 +361,18 @@ async def get_english_level_count():
         db.close()
 
 
+
+
 @app.get("/estadisticas/edad")
 async def get_age_distribution():
     try:
         # Conectar a la base de datos
         db = pymysql.connect(**config)
         cursor = db.cursor(pymysql.cursors.DictCursor)
+
+        # Obtener el total de candidatos
+        cursor.execute('SELECT COUNT(*) as total FROM candidatos')
+        total_count = cursor.fetchone()['total']
 
         # Consulta SQL para agrupar edades en rangos de 5 años y ordenarlos
         query = """
@@ -357,23 +389,29 @@ async def get_age_distribution():
         cursor.execute(query)
         data = cursor.fetchall()
 
-        # Convertir los datos a un DataFrame de pandas
+        # Calcular el porcentaje para cada rango de edad
+        if total_count == 0:
+            return {"message": "No hay datos disponibles"}
+
         df = pd.DataFrame(data)
+        df['percentage'] = (df['count'] / total_count) * 100
+        df['percentage'] = df['percentage'].round(2)  # Round percentages to 2 decimal places
 
         # Convertir el DataFrame a un diccionario
-        result = df.set_index('age_range')['count'].to_dict()
+        result = df.set_index('age_range')['percentage'].to_dict()
 
         # Cerrar la conexión
         cursor.close()
         db.close()
 
         return result
-    
+
     except pymysql.MySQLError as e:
         raise HTTPException(status_code=500, detail=f"Error de base de datos: {e}")
 
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error: {e}")
+
 
 
 
