@@ -5,6 +5,9 @@ import os
 import pymysql
 import pandas as pd
 from typing import Optional
+import re 
+
+
 
 # Cargar variables de entorno desde el archivo .env
 load_dotenv()
@@ -34,6 +37,7 @@ app.add_middleware(
     allow_methods=["*"],  # Allow all methods
     allow_headers=["*"],  # Allow all headers
 )
+
 
 @app.get("/all_empleados")
 async def get_all_empleados(
@@ -261,7 +265,17 @@ async def get_career_count():
         cursor = db.cursor()
 
         cursor.execute('SELECT carrera, COUNT(*) as count FROM candidatos GROUP BY carrera')
-        career_count = {row['carrera']: row['count'] for row in cursor.fetchall()}
+        
+        # Process the results
+        career_count = {}
+        for row in cursor.fetchall():
+            carrera = row['carrera']
+            count = row['count']
+            
+            # Format the carrera name
+            formatted_carrera = re.sub(r'\s+', '_', carrera).lower()
+            career_count[formatted_carrera] = count
+        
         return career_count
 
     except pymysql.MySQLError as e:
@@ -271,6 +285,8 @@ async def get_career_count():
         cursor.close()
         db.close()
 
+
+
 @app.get("/estadisticas/notas")
 async def get_average_grades():
     try:
@@ -279,7 +295,17 @@ async def get_average_grades():
         cursor = db.cursor()
 
         cursor.execute('SELECT carrera, AVG(nota_media) as average FROM candidatos GROUP BY carrera')
-        average_grades = {row['carrera']: row['average'] for row in cursor.fetchall()}
+        
+        # Process the results
+        average_grades = {}
+        for row in cursor.fetchall():
+            carrera = row['carrera']
+            average = row['average']
+            
+            # Format the carrera name
+            formatted_carrera = re.sub(r'\s+', '_', carrera).lower()
+            average_grades[formatted_carrera] = average
+        
         return average_grades
 
     except pymysql.MySQLError as e:
@@ -288,6 +314,7 @@ async def get_average_grades():
     finally:
         cursor.close()
         db.close()
+
 
 @app.get("/estadisticas/ingles")
 async def get_english_level_count():
