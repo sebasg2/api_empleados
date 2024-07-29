@@ -29,10 +29,10 @@ app = FastAPI()
 # Configuración del middleware CORS
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Permitir todos los orígenes
+    allow_origins=["http://localhost:5173"],  # Allow only the specific origin
     allow_credentials=True,
-    allow_methods=["*"],  # Permitir todos los métodos (GET, POST, etc.)
-    allow_headers=["*"],  # Permitir todos los encabezados
+    allow_methods=["*"],  # Allow all methods
+    allow_headers=["*"],  # Allow all headers
 )
 
 @app.get("/all_empleados")
