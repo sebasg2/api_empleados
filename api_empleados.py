@@ -2,6 +2,7 @@ from fastapi import FastAPI, HTTPException, Request,Query
 from dotenv import load_dotenv
 import os
 import pymysql
+import pandas as pd
 from typing import Optional
 
 # Cargar variables de entorno desde el archivo .env
