@@ -176,6 +176,47 @@ async def update_empleado(request: Request):
         if 'db' in locals() and db:
             db.close()
 
+@app.get("/candidaturas_por_empleado")
+async def get_candidaturas_por_empleado(id_empleado: int = Query(..., description="ID del empleado para filtrar candidaturas")):
+    try:
+   
+        db = pymysql.connect(**config)
+        cursor = db.cursor(pymysql.cursors.DictCursor)  # Use DictCursor to get results as dictionaries
+
+        # Obtener los datos de la tabla de candidaturas para el empleado específico
+        query = """
+        SELECT status, COUNT(*) as count 
+        FROM candidaturas 
+        WHERE id_empleado = %s
+        GROUP BY status
+        """
+        cursor.execute(query, (id_empleado,))
+        data = cursor.fetchall()
+        
+        # Convertir los datos a un DataFrame de pandas
+        df = pd.DataFrame(data)
+
+        # Cerrar la conexión
+        cursor.close()
+        db.close()
+
+        # Verificar si se obtuvieron datos
+        if df.empty:
+            return {"message": "No se encontraron candidaturas para el empleado especificado."}
+
+        # Convertir el DataFrame a un diccionario
+        result = df.set_index('status')['count'].to_dict()
+
+        # Retornar el diccionario como respuesta JSON
+        return result
+
+    except pymysql.MySQLError as e:
+        raise HTTPException(status_code=500, detail=f"Error de base de datos: {e}")
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error al generar la respuesta: {e}")
+
+
     
 # Código para ejecutar el servidor Uvicorn si el script se ejecuta directamente
 if __name__ == "__main__":
