@@ -1,4 +1,5 @@
-from fastapi import FastAPI, HTTPException, Request,Query
+from fastapi import FastAPI, HTTPException, Request, Query
+from fastapi.middleware.cors import CORSMiddleware
 from dotenv import load_dotenv
 import os
 import pymysql
@@ -14,20 +15,25 @@ password = os.getenv('DB_PASSWORD')
 host = os.getenv('DB_HOST')
 database = os.getenv('DB_DATABASE')
 
-# Configuración de la conexión a la base de datos
-
-
-#ordenar el search por numero de candidaturas, orden alfabetico de nombre_empleado y orden alfabetico de rol
-
 config = {
     'user': username,
     'password': password,
     'host': host,
+    'port': 3306,  # Asegúrate de incluir el puerto si es necesario
     'database': database,
     'cursorclass': pymysql.cursors.DictCursor
 }
 
 app = FastAPI()
+
+# Configuración del middleware CORS
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # Permitir todos los orígenes
+    allow_credentials=True,
+    allow_methods=["*"],  # Permitir todos los métodos (GET, POST, etc.)
+    allow_headers=["*"],  # Permitir todos los encabezados
+)
 
 @app.get("/all_empleados")
 async def get_all_empleados(
@@ -81,9 +87,6 @@ async def get_all_empleados(
         if 'db' in locals() and db:
             db.close()
 
-
-
-
 @app.delete("/delete_empleado")
 async def delete_empleado(id_empleado: int):
     try:
@@ -119,8 +122,6 @@ async def delete_empleado(id_empleado: int):
             cursor.close()
         if 'db' in locals() and db:
             db.close()
-
-
 
 @app.put("/update_empleado")
 async def update_empleado(request: Request):
@@ -180,7 +181,7 @@ async def update_empleado(request: Request):
 @app.get("/candidaturas_por_empleado")
 async def get_candidaturas_por_empleado(id_empleado: int = Query(..., description="ID del empleado para filtrar candidaturas")):
     try:
-   
+        # Conectar a la base de datos
         db = pymysql.connect(**config)
         cursor = db.cursor(pymysql.cursors.DictCursor)  # Use DictCursor to get results as dictionaries
 
@@ -217,8 +218,6 @@ async def get_candidaturas_por_empleado(id_empleado: int = Query(..., descriptio
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error al generar la respuesta: {e}")
 
-
-
 @app.get("/candidaturas_status")
 async def get_candidaturas_status():
     try:
@@ -254,13 +253,108 @@ async def get_candidaturas_status():
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error: {e}")
 
+@app.get("/estadisticas/carrera")
+async def get_career_count():
+    try:
+        # Conectar a la base de datos
+        db = pymysql.connect(**config)
+        cursor = db.cursor()
+
+        cursor.execute('SELECT carrera, COUNT(*) as count FROM candidatos GROUP BY carrera')
+        career_count = {row['carrera']: row['count'] for row in cursor.fetchall()}
+        return career_count
+
+    except pymysql.MySQLError as e:
+        raise HTTPException(status_code=500, detail=f"Error de base de datos: {e}")
+
+    finally:
+        cursor.close()
+        db.close()
+
+@app.get("/estadisticas/notas")
+async def get_average_grades():
+    try:
+        # Conectar a la base de datos
+        db = pymysql.connect(**config)
+        cursor = db.cursor()
+
+        cursor.execute('SELECT carrera, AVG(nota_media) as average FROM candidatos GROUP BY carrera')
+        average_grades = {row['carrera']: row['average'] for row in cursor.fetchall()}
+        return average_grades
+
+    except pymysql.MySQLError as e:
+        raise HTTPException(status_code=500, detail=f"Error de base de datos: {e}")
+
+    finally:
+        cursor.close()
+        db.close()
+
+@app.get("/estadisticas/ingles")
+async def get_english_level_count():
+    try:
+        # Conectar a la base de datos
+        db = pymysql.connect(**config)
+        cursor = db.cursor()
+
+        cursor.execute('SELECT nivel_ingles, COUNT(*) as count FROM candidatos GROUP BY nivel_ingles')
+        english_level_count = {row['nivel_ingles']: row['count'] for row in cursor.fetchall()}
+        return english_level_count
+
+    except pymysql.MySQLError as e:
+        raise HTTPException(status_code=500, detail=f"Error de base de datos: {e}")
+
+    finally:
+        cursor.close()
+        db.close()
 
 
+@app.get("/estadisticas/edad")
+async def get_age_distribution():
+    try:
+        # Conectar a la base de datos
+        db = pymysql.connect(**config)
+        cursor = db.cursor(pymysql.cursors.DictCursor)
+
+        # Consulta SQL para agrupar edades en rangos de 5 años y ordenarlos
+        query = """
+        SELECT 
+            CONCAT(FLOOR(edad / 5) * 5, '-', FLOOR(edad / 5) * 5 + 4) AS age_range,
+            COUNT(*) as count 
+        FROM 
+            candidatos 
+        GROUP BY 
+            age_range
+        ORDER BY
+            FLOOR(edad / 5) * 5
+        """
+        cursor.execute(query)
+        data = cursor.fetchall()
+
+        # Convertir los datos a un DataFrame de pandas
+        df = pd.DataFrame(data)
+
+        # Convertir el DataFrame a un diccionario
+        result = df.set_index('age_range')['count'].to_dict()
+
+        # Cerrar la conexión
+        cursor.close()
+        db.close()
+
+        return result
     
+    except pymysql.MySQLError as e:
+        raise HTTPException(status_code=500, detail=f"Error de base de datos: {e}")
+
+    except Exception as e:
+        raise HTTPException(status_code=500, detail=f"Error: {e}")
+
+
+
 # Código para ejecutar el servidor Uvicorn si el script se ejecuta directamente
 if __name__ == "__main__":
     import uvicorn
     uvicorn.run("api_empleados:app", host="0.0.0.0", port=8000)
+
 
 
 
