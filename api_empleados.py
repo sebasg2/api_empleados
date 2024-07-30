@@ -394,17 +394,37 @@ async def get_age_distribution():
         cursor.execute('SELECT COUNT(*) as total FROM candidatos')
         total_count = cursor.fetchone()['total']
 
-        # Consulta SQL para agrupar edades en rangos de 5 años y ordenarlos
+        # Consulta SQL para agrupar edades en los rangos especificados y ordenarlos
         query = """
         SELECT 
-            CONCAT(FLOOR(edad / 5) * 5, '-', FLOOR(edad / 5) * 5 + 4) AS age_range,
+            CASE
+                WHEN edad BETWEEN 19 AND 24 THEN '19-24'
+                WHEN edad BETWEEN 25 AND 29 THEN '25-29'
+                WHEN edad BETWEEN 30 AND 34 THEN '30-34'
+                WHEN edad BETWEEN 35 AND 39 THEN '35-39'
+                WHEN edad BETWEEN 40 AND 44 THEN '40-44'
+                WHEN edad BETWEEN 45 AND 49 THEN '45-49'
+                WHEN edad BETWEEN 50 AND 54 THEN '50-54'
+                WHEN edad BETWEEN 55 AND 59 THEN '55-59'
+                ELSE '60+'
+            END AS age_range,
             COUNT(*) as count 
         FROM 
             candidatos 
         GROUP BY 
             age_range
         ORDER BY
-            FLOOR(edad / 5) * 5
+            CASE
+                WHEN age_range = '19-24' THEN 1
+                WHEN age_range = '25-29' THEN 2
+                WHEN age_range = '30-34' THEN 3
+                WHEN age_range = '35-39' THEN 4
+                WHEN age_range = '40-44' THEN 5
+                WHEN age_range = '45-49' THEN 6
+                WHEN age_range = '50-54' THEN 7
+                WHEN age_range = '55-59' THEN 8
+                ELSE 9
+            END
         """
         cursor.execute(query)
         data = cursor.fetchall()
