@@ -7,6 +7,9 @@ import pandas as pd
 from typing import Optional
 import re 
 import joblib
+from sklearn.ensemble import RandomForestClassifier
+import boto3
+
 
 
 
@@ -43,6 +46,17 @@ app.add_middleware(
 model_path = 'models/model_web.pkl'  # Actualiza el nombre del archivo del modelo
 with open(model_path, 'rb') as f:
     model = joblib.load(f)
+
+#Conectar con S3
+
+s3_client = boto3.client(
+    's3',
+    aws_access_key_id=os.getenv('AWS_ACCESS_KEY_ID'),
+    aws_secret_access_key=os.getenv('AWS_SECRET_ACCESS_KEY'),
+    region_name=os.getenv('AWS_REGION')
+)
+s3_bucket_name = 'modelosexe'
+s3_model_key = 'model_web.pkl'
 
 
 @app.get("/all_empleados")
@@ -472,6 +486,78 @@ async def predict(id_candidatura: int):
     finally:
         cursor.close()
         db.close()
+
+
+@app.post("/retrain")
+def retrain():
+    try:
+        # Conectar a la base de datos
+        db = pymysql.connect(**config)
+        cursor = db.cursor()
+
+        # Obtener todas las competencias y candidaturas
+        cursor.execute("SELECT * FROM competencias")
+        competencias = cursor.fetchall()
+
+        cursor.execute("""
+            SELECT * FROM candidaturas
+            WHERE status IN ('Entrevista2', 'Ofertado', 'Entrevista1', 'CentroEvaluación', 'Descartado')
+        """)
+        candidaturas = cursor.fetchall()
+
+        if not competencias or not candidaturas:
+            raise HTTPException(status_code=404, detail="No se encontraron suficientes datos para reentrenar el modelo.")
+
+        # Crear un diccionario para las competencias por candidatura
+        competencias_dict = {}
+        for comp in competencias:
+            if comp['id_candidatura'] not in competencias_dict:
+                competencias_dict[comp['id_candidatura']] = {}
+            competencias_dict[comp['id_candidatura']][comp['nombre_competencia']] = comp['nota']
+
+        # Crear listas para los datos de entrada (X) y las etiquetas (y)
+        X = []
+        y = []
+
+        required_competencies = ['Profesionalidad', 'Dominio', 'Resiliencia', 'HabilidadesSociales', 'Liderazgo', 'Colaboracion', 'Compromiso', 'Iniciativa']
+        for cand in candidaturas:
+            if cand['id_candidatura'] in competencias_dict:
+                comp_dict = competencias_dict[cand['id_candidatura']]
+                # Verificar que todas las competencias necesarias están presentes
+                if all(comp in comp_dict for comp in required_competencies):
+                    X.append([comp_dict[comp] for comp in required_competencies])
+                    y.append(1 if cand['status'] in ["Entrevista2", "Ofertado", "Entrevista1", "CentroEvaluación"] else 0)
+
+        if not X or not y:
+            raise HTTPException(status_code=400, detail="No se encontraron suficientes datos válidos para reentrenar el modelo.")
+
+        # Convertir a DataFrame
+        X = pd.DataFrame(X, columns=required_competencies)
+        y = pd.Series(y)
+
+        # Entrenar el modelo
+        new_model = RandomForestClassifier()
+        new_model.fit(X, y)
+
+        # Guardar el nuevo modelo localmente
+        local_model_path = 'models/model_web.pkl'
+        joblib.dump(new_model, local_model_path)
+
+        # Subir el modelo al bucket S3
+        try:
+            s3_client.upload_file(local_model_path, s3_bucket_name, s3_model_key)
+            return {
+                "detail": "Modelo reentrenado y actualizado con los datos actuales.",
+            }
+        except Exception as e:
+            raise HTTPException(status_code=500, detail=f"Error al subir el modelo a S3: {e}")
+
+    finally:
+        # Asegurarse de cerrar el cursor y la conexión a la base de datos
+        if 'cursor' in locals() and cursor:
+            cursor.close()
+        if 'db' in locals() and db:
+            db.close()
 
 
 
